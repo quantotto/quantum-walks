@@ -1,3 +1,3 @@
-# Wiser / Womanium Project - NNL - Random Walks
+# Wiser / Womanium Project - Random Walks
 
 Implementation of generic Quantum Galton Box.
