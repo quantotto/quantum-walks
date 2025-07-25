@@ -4,6 +4,16 @@ for comparisons in Quantum Galton Board simulations.
 
 from typing import List, Tuple
 import numpy as np
+from enum import Enum
+
+
+class DistributionType(Enum):
+    """Enumeration for different types of distributions used in Quantum Galton Board simulations."""
+
+    UNIFORM = "uniform"
+    EXPONENTIAL = "exponential"
+    HADAMARD = "hadamard"
+    NORMAL = "normal"
 
 
 class DistributionGenerator:
@@ -69,3 +79,17 @@ class DistributionGenerator:
         gaussian /= gaussian.sum()
         gaussian *= self.shots
         return positions.tolist(), gaussian.tolist()
+
+    def generate_distribution(
+        self, distribution_type: DistributionType, **kwargs
+    ) -> Tuple[List[int], List[float]]:
+        """Generates a distribution based on the specified type."""
+        distribution_generators = {
+            DistributionType.UNIFORM: self.uniform,
+            DistributionType.EXPONENTIAL: self.exponential,
+            DistributionType.HADAMARD: self.hadamard,
+            DistributionType.NORMAL: self.normal,
+        }
+        if distribution_type not in distribution_generators:
+            raise ValueError(f"Unsupported distribution type: {distribution_type}")
+        return distribution_generators[distribution_type](**kwargs)

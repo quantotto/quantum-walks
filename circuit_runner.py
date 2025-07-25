@@ -1,14 +1,21 @@
 """Helper classes and functions for Quantum Galton Board simulation notebook."""
 
-from typing import Dict
+from typing import Dict, List
 
 import matplotlib.pyplot as plt
 from enum import Enum
 
-from qiskit import QuantumCircuit
+from qiskit import QuantumCircuit, transpile
 from qiskit_aer import AerSimulator
 from qiskit_ibm_runtime import SamplerV2 as IBMSampler
 from qiskit.providers import BackendV2
+from qiskit.providers import BackendV2
+from qiskit.transpiler import PassManager
+from qiskit_ibm_transpiler.ai.routing import AIRouting
+from qiskit_ibm_transpiler import generate_ai_pass_manager
+
+
+from distributions import DistributionGenerator, DistributionType
 
 
 class RunMode(Enum):
@@ -123,3 +130,60 @@ class CircuitRunner:
         if reference_values is not None:
             plt.legend()
         plt.show()
+
+
+def run_simulation(
+    n: int,
+    shots: int,
+    circuit_generator: callable,
+    coin: callable,
+    run_mode: RunMode,
+    distribution_type: DistributionType = DistributionType.NORMAL,
+    title: str = "",
+    show_reference: bool = True,
+    backend: BackendV2 = None,
+) -> Dict[str, List[int]]:
+    """Runs the Quantum Galton Board simulation and returns the results."""
+    runner = CircuitRunner(n, shots, run_mode, backend=backend)
+    circuit = circuit_generator(n, coin)
+    if run_mode != RunMode.REAL_DEVICE:
+        my_backend = runner.job_runner
+    else:
+        my_backend = backend
+    circuit = transpile(circuit, backend=my_backend, optimization_level=3)
+    print(
+        f"Width and depth of transpiled circuit: {circuit.width()}, {circuit.depth()}"
+    )
+    if run_mode == RunMode.NOISY_SIMULATOR:
+        ai_transpiler_pass_manager = generate_ai_pass_manager(
+            backend=my_backend,
+            ai_optimization_level=3,
+            optimization_level=3,
+            ai_layout_mode="optimize",
+        )
+        circuit = ai_transpiler_pass_manager.run(circuit)
+        print(f"Width and depth after AI Pass: {circuit.width()}, {circuit.depth()}")
+    elif run_mode == RunMode.REAL_DEVICE:
+        ai_passmanager = PassManager(
+            [
+                AIRouting(
+                    backend=my_backend,
+                    optimization_level=3,
+                    layout_mode="optimize",
+                    local_mode=True,
+                )
+            ]
+        )
+        circuit = ai_passmanager.run(circuit)
+        print(f"Width and depth after AI pass: {circuit.width()}, {circuit.depth()}")
+
+    distribution_generator = DistributionGenerator(n, shots)
+    positions, reference_freqs = distribution_generator.generate_distribution(
+        distribution_type
+    )
+    runner.run_circuit(circuit)
+    runner.plot_freqs(
+        title=title,
+        x_map=positions,
+        reference_values=reference_freqs if show_reference else None,
+    )
