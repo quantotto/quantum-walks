@@ -1,6 +1,6 @@
 """Helper classes and functions for Quantum Galton Board simulation notebook."""
 
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import matplotlib.pyplot as plt
 from enum import Enum
@@ -67,7 +67,7 @@ class CircuitRunner:
             raise ValueError(f"Unsupported run mode: {self.run_mode}")
         return job_runner
 
-    def _cleanup_freqs(self, freqs: Dict[str, int]) -> Dict[str, int]:
+    def _cleanup_freqs(self, freqs: Dict[str, int]) -> Dict[str, float]:
         """Cleans up the frequency dictionary to ensure all bitstrings are present."""
         new_freqs = {}
         for i in range(0, self.n + 1):
@@ -80,7 +80,7 @@ class CircuitRunner:
         if total_counts < self.shots:
             ratio = self.shots / total_counts
             for key in new_freqs:
-                new_freqs[key] = int(new_freqs[key] * ratio)
+                new_freqs[key] = new_freqs[key] * ratio
         return new_freqs
 
     def run_circuit(self, circuit: QuantumCircuit) -> Dict[str, float]:
@@ -142,7 +142,7 @@ def run_simulation(
     title: str = "",
     show_reference: bool = True,
     backend: BackendV2 = None,
-) -> Dict[str, List[int]]:
+) -> Tuple[List[int], Dict[str, float], List[float]]:
     """Runs the Quantum Galton Board simulation and returns the results."""
     runner = CircuitRunner(n, shots, run_mode, backend=backend)
     circuit = circuit_generator(n, coin)
@@ -181,9 +181,10 @@ def run_simulation(
     positions, reference_freqs = distribution_generator.generate_distribution(
         distribution_type
     )
-    runner.run_circuit(circuit)
+    freqs = runner.run_circuit(circuit)
     runner.plot_freqs(
         title=title,
         x_map=positions,
         reference_values=reference_freqs if show_reference else None,
     )
+    return positions, freqs, reference_freqs
