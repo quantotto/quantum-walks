@@ -150,11 +150,11 @@ def run_simulation(
         my_backend = runner.job_runner
     else:
         my_backend = backend
-    circuit = transpile(circuit, backend=my_backend, optimization_level=3)
+    circuit = transpile(circuit, backend=my_backend, optimization_level=1)
     print(
         f"Width and depth of transpiled circuit: {circuit.width()}, {circuit.depth()}"
     )
-    if run_mode == RunMode.NOISY_SIMULATOR:
+    if run_mode in (RunMode.NOISY_SIMULATOR, RunMode.REAL_DEVICE):
         ai_transpiler_pass_manager = generate_ai_pass_manager(
             backend=my_backend,
             ai_optimization_level=3,
@@ -163,19 +163,6 @@ def run_simulation(
         )
         circuit = ai_transpiler_pass_manager.run(circuit)
         print(f"Width and depth after AI Pass: {circuit.width()}, {circuit.depth()}")
-    elif run_mode == RunMode.REAL_DEVICE:
-        ai_passmanager = PassManager(
-            [
-                AIRouting(
-                    backend=my_backend,
-                    optimization_level=3,
-                    layout_mode="optimize",
-                    local_mode=True,
-                )
-            ]
-        )
-        circuit = ai_passmanager.run(circuit)
-        print(f"Width and depth after AI pass: {circuit.width()}, {circuit.depth()}")
 
     distribution_generator = DistributionGenerator(n, shots)
     positions, reference_freqs = distribution_generator.generate_distribution(
