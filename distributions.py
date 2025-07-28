@@ -27,28 +27,33 @@ class DistributionGenerator:
         self.n = n
         self.shots = shots
 
-    def uniform(self) -> Tuple[List[int], List[float]]:
+    def uniform(self, generate_probs: bool = False) -> Tuple[List[int], List[float]]:
         """Generates a uniform distribution for the Galton Board."""
-        uniform = np.array([1 / (self.n + 1)] * (self.n + 1)) * self.shots
+        uniform = np.array([1 / (self.n + 1)] * (self.n + 1))
+        if not generate_probs:
+            uniform *= self.shots
         return np.arange(0, self.n + 1).tolist(), uniform.tolist()
 
-    def exponential(self, lambda_rate: float = 1) -> Tuple[List[int], List[float]]:
+    def exponential(
+        self, lambda_rate: float = 1, generate_probs: bool = False
+    ) -> Tuple[List[int], List[float]]:
         """Generates an exponential distribution for the Galton Board."""
         x = np.arange(0, self.n + 1)
-        exp_probs = np.exp(-lambda_rate * x)
-        exp_probs /= exp_probs.sum()
-        exp_freqs = exp_probs * self.shots
-        return x.tolist(), exp_freqs.tolist()
+        exponential = np.exp(-lambda_rate * x)
+        exponential /= exponential.sum()
+        if not generate_probs:
+            exponential = exponential * self.shots
+        return x.tolist(), exponential.tolist()
 
-    def hadamard(self) -> Tuple[List[int], List[float]]:
+    def hadamard(self, generate_probs: bool = False) -> Tuple[List[int], List[float]]:
         """Generates a Hadamard distribution for the Galton Board."""
-        hadamard = lambda: np.array([[1, 1], [1, -1]]) / np.sqrt(2)
+        hadamard_op = lambda: np.array([[1, 1], [1, -1]]) / np.sqrt(2)
 
         position_range = 2 * self.n + 1
         mid = position_range // 2
         state = np.zeros((2, position_range), dtype=complex)
         state[:, mid] = np.array([1, 1j])
-        H = hadamard()
+        H = hadamard_op()
         for _ in range(self.n):
             coin_transformed = np.zeros_like(state, dtype=complex)
             for pos in range(position_range):
@@ -63,13 +68,16 @@ class DistributionGenerator:
                         new_state[coin, new_pos] += coin_transformed[coin, pos]
             state = new_state
         total_prob = np.sum(np.abs(state) ** 2)
-        probabilities = np.sum(np.abs(state) ** 2, axis=0) / total_prob
-        freqs = probabilities * self.shots
+        hadamard_dist = np.sum(np.abs(state) ** 2, axis=0) / total_prob
+        if not generate_probs:
+            hadamard_dist = hadamard_dist * self.shots
         positions = np.arange(-self.n, self.n + 1)
-        return positions[::2].tolist(), freqs[::2].tolist()
+        return positions[::2].tolist(), hadamard_dist[::2].tolist()
 
-    def normal(self) -> Tuple[List[int], List[float]]:
-        """Generates a normal distribution approximation for the Galton Board."""
+    def normal(self, generate_probs: bool = False) -> Tuple[List[int], List[float]]:
+        """Generates a normal distribution approximation for the Galton Board.
+        if gernerate_probs is True, returns probabilities instead of frequencies.
+        """
         left = -(self.n / 2)
         right = left + self.n + 1
         positions = np.arange(left, right)
@@ -77,11 +85,15 @@ class DistributionGenerator:
         std = np.sqrt(self.n)
         gaussian = np.exp(-0.5 * ((2 * positions - mean) / std) ** 2)
         gaussian /= gaussian.sum()
-        gaussian *= self.shots
+        if not generate_probs:
+            gaussian *= self.shots
         return positions.tolist(), gaussian.tolist()
 
     def generate_distribution(
-        self, distribution_type: DistributionType, **kwargs
+        self,
+        distribution_type: DistributionType,
+        generate_probs: bool = False,
+        **kwargs,
     ) -> Tuple[List[int], List[float]]:
         """Generates a distribution based on the specified type."""
         distribution_generators = {
@@ -92,4 +104,6 @@ class DistributionGenerator:
         }
         if distribution_type not in distribution_generators:
             raise ValueError(f"Unsupported distribution type: {distribution_type}")
-        return distribution_generators[distribution_type](**kwargs)
+        return distribution_generators[distribution_type](
+            generate_probs=generate_probs, **kwargs
+        )

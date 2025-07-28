@@ -10,8 +10,6 @@ from qiskit_aer import AerSimulator
 from qiskit_ibm_runtime import SamplerV2 as IBMSampler
 from qiskit.providers import BackendV2
 from qiskit.providers import BackendV2
-from qiskit.transpiler import PassManager
-from qiskit_ibm_transpiler.ai.routing import AIRouting
 from qiskit_ibm_transpiler import generate_ai_pass_manager
 
 
@@ -142,10 +140,12 @@ def run_simulation(
     title: str = "",
     show_reference: bool = True,
     backend: BackendV2 = None,
+    plots: bool = True,
+    **kwargs,
 ) -> Tuple[List[int], Dict[str, float], List[float]]:
     """Runs the Quantum Galton Board simulation and returns the results."""
     runner = CircuitRunner(n, shots, run_mode, backend=backend)
-    circuit = circuit_generator(n, coin)
+    circuit = circuit_generator(n, coin, **kwargs)
     if run_mode != RunMode.REAL_DEVICE:
         my_backend = runner.job_runner
     else:
@@ -169,9 +169,10 @@ def run_simulation(
         distribution_type
     )
     freqs = runner.run_circuit(circuit)
-    runner.plot_freqs(
-        title=title,
-        x_map=positions,
-        reference_values=reference_freqs if show_reference else None,
-    )
+    if plots:
+        runner.plot_freqs(
+            title=title,
+            x_map=positions,
+            reference_values=reference_freqs if show_reference else None,
+        )
     return positions, freqs, reference_freqs
