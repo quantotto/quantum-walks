@@ -59,9 +59,9 @@ class CircuitRunner:
     def _create_job_runner(self):
         """Create a job runner based on the run mode."""
         if self.run_mode == RunMode.NOISELESS_SIMULATOR:
-            job_runner = AerSimulator()
+            job_runner = AerSimulator(method="automatic")
         elif self.run_mode == RunMode.NOISY_SIMULATOR:
-            job_runner = AerSimulator.from_backend(self.backend)
+            job_runner = AerSimulator.from_backend(self.backend, method="automatic")
         elif self.run_mode == RunMode.REAL_DEVICE:
             job_runner = IBMSampler(mode=self.backend)
         else:
@@ -93,14 +93,21 @@ class CircuitRunner:
         else:
             freqs = result.get_counts()
         if self.mititate_noise and self.run_mode != RunMode.NOISELESS_SIMULATOR:
-            mit = mthree.M3Mitigation(self.backend)
+            print("Mitigating noise...")
+            mit = mthree.M3Mitigation(
+                self.job_runner
+                if self.run_mode == RunMode.NOISY_SIMULATOR
+                else self.backend
+            )
             mit.cals_from_system(range(circuit.num_qubits))
+            print("Applying correction...")
             quasi = mit.apply_correction(freqs, range(self.n + 1))
             probs = quasi.nearest_probability_distribution()
             probs = dict(sorted(probs.items()))
             freqs = {
                 bitstring: count * self.shots for bitstring, count in probs.items()
             }
+            print("Correction applied.")
         for i in range(0, self.n + 1):
             bits = ["0"] * (self.n + 1)
             bits[i] = "1"
@@ -129,7 +136,7 @@ class CircuitRunner:
             plt.plot(
                 x_axis,
                 reference_values,
-                color="red",
+                color="blue",
                 marker="o",
                 linestyle="-",
                 label="Reference",
