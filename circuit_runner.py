@@ -12,6 +12,7 @@ from qiskit.providers import BackendV2
 from qiskit.providers import BackendV2
 from qiskit_ibm_transpiler import generate_ai_pass_manager
 
+import mthree
 
 from distributions import DistributionGenerator, DistributionType
 
@@ -39,6 +40,7 @@ class CircuitRunner:
         shots: int,
         run_mode: RunMode,
         backend: BackendV2 = None,
+        mitigate_noise: bool = False,
         **kwargs,
     ):
         self.n = n
@@ -49,6 +51,7 @@ class CircuitRunner:
             )
         self.run_mode = run_mode
         self.backend = backend
+        self.mititate_noise = mitigate_noise
         self.kwargs = kwargs
         self.job_runner = self._create_job_runner()
         self._freqs = []
@@ -89,6 +92,15 @@ class CircuitRunner:
             freqs = result[0].data.distribution.get_counts()
         else:
             freqs = result.get_counts()
+        if self.mititate_noise and self.run_mode != RunMode.NOISELESS_SIMULATOR:
+            mit = mthree.M3Mitigation(self.backend)
+            mit.cals_from_system(range(circuit.num_qubits))
+            quasi = mit.apply_correction(freqs, range(self.n + 1))
+            probs = quasi.nearest_probability_distribution()
+            probs = dict(sorted(probs.items()))
+            freqs = {
+                bitstring: count * self.shots for bitstring, count in probs.items()
+            }
         for i in range(0, self.n + 1):
             bits = ["0"] * (self.n + 1)
             bits[i] = "1"
@@ -140,11 +152,14 @@ def run_simulation(
     title: str = "",
     show_reference: bool = True,
     backend: BackendV2 = None,
+    mitigate_noise: bool = False,
     plots: bool = True,
     **kwargs,
 ) -> Tuple[List[int], Dict[str, float], List[float]]:
     """Runs the Quantum Galton Board simulation and returns the results."""
-    runner = CircuitRunner(n, shots, run_mode, backend=backend)
+    runner = CircuitRunner(
+        n, shots, run_mode, backend=backend, mitigate_noise=mitigate_noise
+    )
     circuit = circuit_generator(n, coin, **kwargs)
     if run_mode != RunMode.REAL_DEVICE:
         my_backend = runner.job_runner
@@ -176,3 +191,15 @@ def run_simulation(
             reference_values=reference_freqs if show_reference else None,
         )
     return positions, freqs, reference_freqs
+
+
+def ai_transpile_circuit(circuit: QuantumCircuit, backend: BackendV2) -> QuantumCircuit:
+    """Transpiles the given quantum circuit for the specified backend."""
+    my_circuit = transpile(circuit, backend=backend, optimization_level=1)
+    ai_transpiler_pass_manager = generate_ai_pass_manager(
+        backend=backend,
+        ai_optimization_level=3,
+        optimization_level=3,
+        ai_layout_mode="optimize",
+    )
+    return ai_transpiler_pass_manager.run(my_circuit)
