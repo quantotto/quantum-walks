@@ -9,7 +9,6 @@ from qiskit import QuantumCircuit, transpile
 from qiskit_aer import AerSimulator
 from qiskit_ibm_runtime import SamplerV2 as IBMSampler
 from qiskit.providers import BackendV2
-from qiskit.providers import BackendV2
 from qiskit_ibm_transpiler import generate_ai_pass_manager
 
 import mthree
@@ -58,10 +57,11 @@ class CircuitRunner:
 
     def _create_job_runner(self):
         """Create a job runner based on the run mode."""
+        options = {"method": "matrix_product_state", "max_parallel_threads": 4}
         if self.run_mode == RunMode.NOISELESS_SIMULATOR:
-            job_runner = AerSimulator(method="automatic")
+            job_runner = AerSimulator(**options)
         elif self.run_mode == RunMode.NOISY_SIMULATOR:
-            job_runner = AerSimulator.from_backend(self.backend, method="automatic")
+            job_runner = AerSimulator.from_backend(self.backend, **options)
         elif self.run_mode == RunMode.REAL_DEVICE:
             job_runner = IBMSampler(mode=self.backend)
         else:
