@@ -1,6 +1,7 @@
 """Helper classes and functions for Quantum Galton Board simulation notebook."""
 
 from typing import Dict, List, Tuple
+from attr import dataclass
 
 import matplotlib.pyplot as plt
 from enum import Enum
@@ -32,6 +33,34 @@ class RunMode(Enum):
         return cls(mode_str.lower())
 
 
+@dataclass
+class CircuitDefinition:
+    circuit_generator: callable
+    coin: callable
+    distribution_type: DistributionType = DistributionType.NORMAL
+    title: str = ""
+    kwargs: Dict = {}
+
+
+def cleanup_freqs(n, shots, freqs: Dict[str, int]) -> Dict[str, float]:
+    """Cleans up the frequency dictionary to ensure all bitstrings are present."""
+    if not freqs:
+        return {}
+    new_freqs = {}
+    for i in range(0, n + 1):
+        bits = ["0"] * (n + 1)
+        bits[i] = "1"
+        bitstring = "".join(bits)
+        new_freqs[bitstring] = freqs.get(bitstring, 0)
+    new_freqs = dict(sorted(new_freqs.items()))
+    total_counts = sum(new_freqs.values())
+    if total_counts < shots:
+        ratio = shots / total_counts
+        for key in new_freqs:
+            new_freqs[key] = new_freqs[key] * ratio
+    return new_freqs
+
+
 class CircuitRunner:
     def __init__(
         self,
@@ -50,7 +79,7 @@ class CircuitRunner:
             )
         self.run_mode = run_mode
         self.backend = backend
-        self.mititate_noise = mitigate_noise
+        self.mitigate_noise = mitigate_noise
         self.kwargs = kwargs
         self.job_runner = self._create_job_runner()
         self._freqs = []
@@ -68,85 +97,100 @@ class CircuitRunner:
             raise ValueError(f"Unsupported run mode: {self.run_mode}")
         return job_runner
 
-    def _cleanup_freqs(self, freqs: Dict[str, int]) -> Dict[str, float]:
-        """Cleans up the frequency dictionary to ensure all bitstrings are present."""
-        new_freqs = {}
-        for i in range(0, self.n + 1):
-            bits = ["0"] * (self.n + 1)
-            bits[i] = "1"
-            bitstring = "".join(bits)
-            new_freqs[bitstring] = freqs.get(bitstring, 0)
-        new_freqs = dict(sorted(new_freqs.items()))
-        total_counts = sum(new_freqs.values())
-        if total_counts < self.shots:
-            ratio = self.shots / total_counts
-            for key in new_freqs:
-                new_freqs[key] = new_freqs[key] * ratio
-        return new_freqs
-
-    def run_circuit(self, circuit: QuantumCircuit) -> Dict[str, float]:
+    def run_circuit(
+        self, circuit: QuantumCircuit | List[QuantumCircuit]
+    ) -> Tuple[List[Dict[str, float]], List[Dict[str, float]]]:
         """Run the quantum circuit and return the frequency distribution."""
-        job = self.job_runner.run([circuit], shots=self.shots)
+        if isinstance(circuit, QuantumCircuit):
+            circuits = [circuit]
+        elif isinstance(circuit, List):
+            circuits = circuit
+        else:
+            raise ValueError(
+                "Circuit must be a QuantumCircuit or a list of QuantumCircuits."
+            )
+        job = self.job_runner.run(circuits, shots=self.shots)
         result = job.result()
         if self.run_mode == RunMode.REAL_DEVICE:
-            freqs = result[0].data.distribution.get_counts()
+            freqs = [res.data.distribution.get_counts() for res in result]
         else:
-            freqs = result.get_counts()
-        if self.mititate_noise and self.run_mode != RunMode.NOISELESS_SIMULATOR:
+            if len(circuits) == 1:
+                freqs = [result.get_counts()]
+            else:
+                freqs = result.get_counts()
+        freqs_mitigated = []
+        if self.mitigate_noise and self.run_mode != RunMode.NOISELESS_SIMULATOR:
             print("Mitigating noise...")
-            mit = mthree.M3Mitigation(
-                self.job_runner
-                if self.run_mode == RunMode.NOISY_SIMULATOR
-                else self.backend
-            )
-            mit.cals_from_system(range(circuit.num_qubits))
-            print("Applying correction...")
-            quasi = mit.apply_correction(freqs, range(self.n + 1))
-            probs = quasi.nearest_probability_distribution()
-            probs = dict(sorted(probs.items()))
-            freqs = {
-                bitstring: count * self.shots for bitstring, count in probs.items()
-            }
+            for i, qc in enumerate(circuits):
+                mit = mthree.M3Mitigation(
+                    self.job_runner
+                    if self.run_mode == RunMode.NOISY_SIMULATOR
+                    else self.backend
+                )
+                mit.cals_from_system(range(qc.num_qubits))
+                print("Applying correction...")
+                quasi = mit.apply_correction(freqs[i], range(self.n + 1))
+                probs = quasi.nearest_probability_distribution()
+                probs = dict(sorted(probs.items()))
+                freqs_mitigated.append(
+                    {
+                        bitstring: count * self.shots
+                        for bitstring, count in probs.items()
+                    }
+                )
             print("Correction applied.")
+        else:
+            freqs_mitigated = [{}] * len(circuits)
         for i in range(0, self.n + 1):
             bits = ["0"] * (self.n + 1)
             bits[i] = "1"
             bitstring = "".join(bits)
-            if bitstring not in freqs:
-                freqs[bitstring] = 0
-        self._freqs = self._cleanup_freqs(dict(sorted(freqs.items())))
-        return self._freqs
+            for frs in freqs:
+                if bitstring not in frs:
+                    frs[bitstring] = 0
+            if self.mitigate_noise:
+                for frs in freqs_mitigated:
+                    if bitstring not in frs:
+                        frs[bitstring] = 0
+        self._freqs = [
+            cleanup_freqs(self.n, self.shots, dict(sorted(frs.items())))
+            for frs in freqs
+        ]
+        self._freqs_mitigated = [
+            cleanup_freqs(self.n, self.shots, dict(sorted(frs.items())))
+            for frs in freqs_mitigated
+        ]
+        return self._freqs, self._freqs_mitigated
 
-    def plot_freqs(self, title="", x_map=None, reference_values=None):
-        """Plots the frequencies of bitstrings as a histogram, with optional reference line."""
-        if len(self._freqs) != self.n + 1:
-            print(
-                "Warning: The number of frequencies does not match the expected count."
-            )
+
+def plot_freqs(n, freqs, title="", x_map=None, reference_values=None):
+    """Plots the frequencies of bitstrings as a histogram, with optional reference line."""
+    if len(freqs) != n + 1:
+        print("Warning: The number of frequencies does not match the expected count.")
+        return
+    if x_map is not None:
+        if len(x_map) != n + 1:
+            print("Warning: x_map length does not match the expected count.")
             return
-        if x_map is not None:
-            if len(x_map) != self.n + 1:
-                print("Warning: x_map length does not match the expected count.")
-                return
-            x_axis = x_map
-        else:
-            x_axis = list(self._freqs.keys())
-        plt.bar(x_axis, self._freqs.values(), label="Quantum Galton Box")
-        if reference_values is not None:
-            plt.plot(
-                x_axis,
-                reference_values,
-                color="blue",
-                marker="o",
-                linestyle="-",
-                label="Reference",
-            )
-        plt.xlabel("Position")
-        plt.ylabel("Frequency")
-        plt.title(title)
-        if reference_values is not None:
-            plt.legend()
-        plt.show()
+        x_axis = x_map
+    else:
+        x_axis = list(freqs.keys())
+    plt.bar(x_axis, freqs.values(), label="Quantum Galton Box")
+    if reference_values is not None:
+        plt.plot(
+            x_axis,
+            reference_values,
+            color="blue",
+            marker="o",
+            linestyle="-",
+            label="Reference",
+        )
+    plt.xlabel("Position")
+    plt.ylabel("Frequency")
+    plt.title(title)
+    if reference_values is not None:
+        plt.legend()
+    plt.show()
 
 
 def run_simulation(
@@ -190,14 +234,24 @@ def run_simulation(
     positions, reference_freqs = distribution_generator.generate_distribution(
         distribution_type
     )
-    freqs = runner.run_circuit(circuit)
+    freqs, freqs_mitigated = runner.run_circuit(circuit)
     if plots:
-        runner.plot_freqs(
+        plot_freqs(
+            n,
+            freqs[0],
             title=title,
             x_map=positions,
             reference_values=reference_freqs if show_reference else None,
         )
-    return positions, freqs, reference_freqs
+        if mitigate_noise:
+            plot_freqs(
+                n,
+                freqs_mitigated[0],
+                title=f"{title} (Mitigated)",
+                x_map=positions,
+                reference_values=reference_freqs if show_reference else None,
+            )
+    return positions, freqs[0], freqs_mitigated[0], reference_freqs
 
 
 def ai_transpile_circuit(circuit: QuantumCircuit, backend: BackendV2) -> QuantumCircuit:
@@ -210,3 +264,67 @@ def ai_transpile_circuit(circuit: QuantumCircuit, backend: BackendV2) -> Quantum
         ai_layout_mode="optimize",
     )
     return ai_transpiler_pass_manager.run(my_circuit)
+
+
+def run_optimized_multi_job_simulation(
+    circuit_defs: List[CircuitDefinition],
+    n: int,
+    shots: int,
+    run_mode: RunMode,
+    show_reference: bool = True,
+    backend: BackendV2 = None,
+    mitigate_noise: bool = False,
+    plots: bool = True,
+) -> Tuple[List[int], Dict[str, float], List[float]]:
+    """Runs the Quantum Galton Board simulation and returns the results."""
+    runner = CircuitRunner(
+        n, shots, run_mode, backend=backend, mitigate_noise=mitigate_noise
+    )
+    circuits = []
+    distribution_generator = DistributionGenerator(n, shots)
+    for circuit_def in circuit_defs:
+        probs = distribution_generator.generate_distribution(
+            circuit_def.distribution_type, generate_probs=True
+        )[1]
+        qc = circuit_def.circuit_generator(n, circuit_def.coin, probs=probs)
+        if run_mode != RunMode.REAL_DEVICE:
+            my_backend = runner.job_runner
+        else:
+            my_backend = backend
+        qc = transpile(qc, backend=my_backend, optimization_level=1)
+        print(f"Width and depth of transpiled circuit: {qc.width()}, {qc.depth()}")
+        if run_mode in (RunMode.NOISY_SIMULATOR, RunMode.REAL_DEVICE):
+            ai_transpiler_pass_manager = generate_ai_pass_manager(
+                backend=my_backend,
+                ai_optimization_level=3,
+                optimization_level=3,
+                ai_layout_mode="optimize",
+            )
+            qc = ai_transpiler_pass_manager.run(qc)
+            print(f"Width and depth after AI Pass: {qc.width()}, {qc.depth()}")
+        circuits.append(qc)
+    freqs, freqs_mitigated = runner.run_circuit(circuits)
+    positions, reference_freqs = [], []
+    for i in range(len(circuit_defs)):
+        pos, ref_freq = distribution_generator.generate_distribution(
+            circuit_defs[i].distribution_type
+        )
+        positions.append(pos)
+        reference_freqs.append(ref_freq)
+        if plots:
+            plot_freqs(
+                n,
+                freqs[i],
+                title=circuit_defs[i].title,
+                x_map=pos,
+                reference_values=ref_freq if show_reference else None,
+            )
+            if mitigate_noise:
+                plot_freqs(
+                    n,
+                    freqs_mitigated[i],
+                    title=f"{circuit_defs[i].title} (Mitigated)",
+                    x_map=pos,
+                    reference_values=ref_freq if show_reference else None,
+                )
+    return positions, freqs, freqs_mitigated, reference_freqs
