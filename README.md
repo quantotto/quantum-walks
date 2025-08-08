@@ -18,6 +18,7 @@ I attest that all the work was done solely by myself (Yevgeny Menaker). The use 
 - Python modules:
   - Circuit runner ([circuit_runner.py](circuit_runner.py)): infrastructure code to run the simulations based on provided parameters and plot the results
   - Distributions generator ([distributions.py](distributions.py)): helper module to generate samples (probabilities and frequencies) from various distributions
+- Video: [available on YouTube](https://youtu.be/T_LdU5lpku8)
 
 ## Project Description
 
