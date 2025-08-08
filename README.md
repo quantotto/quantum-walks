@@ -1,4 +1,4 @@
-# Wiser / Womanium Project - Random Walks and Monte Carlo
+# Wiser / Womanium Project - Quantum Walks and Monte Carlo
 
 
 ## Submission Details
