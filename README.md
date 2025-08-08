@@ -12,7 +12,7 @@ I attest that all the work was done solely by myself (Yevgeny Menaker). The use 
 
 ## Deliverables List
 
-- Presentation deck: [Random Walks Project](random_walks_project_v4.pdf)
+- Presentation deck: [quantum_walks_project_v4.pdf](quantum_walks_project_v4.pdf)
 - Fully executed Jupyter Notebook of the solution: [qgb_qiskit.ipynb](qgb_qiskit.ipynb)
 - Summary of the approach: [solution_2pager.pdf](solution_2pager.pdf)
 - Python modules:
