@@ -1,6 +1,4 @@
-# Wiser / Womanium Project - Random Walks
-
-Implementation of generic Quantum Galton Box.
+# Wiser / Womanium Project - Random Walks and Monte Carlo
 
 
 ## Submission Details
@@ -14,18 +12,18 @@ I attest that all the work was done solely by myself (Yevgeny Menaker). The use 
 
 ## Deliverables List
 
-- Presentation deck: [Random Walks Project](random_walks_project_v2.pdf)
-- Jupyter Notebook of the solution: [qgb_qiskit.ipynb](qgb_qiskit.ipynb)
+- Presentation deck: [Random Walks Project](random_walks_project_v4.pdf)
+- Fully executed Jupyter Notebook of the solution: [qgb_qiskit.ipynb](qgb_qiskit.ipynb)
 - Summary of the approach: [solution_2pager.pdf](solution_2pager.pdf)
 - Python modules:
-  - Circuit runner: infrastructure code to run the simulations based on provided parameters and plot the results [circuit_runner.py](circuit_runner.py)
-  - Distributions generator: helper module to generate samples (probabilities and frequencies) from various distributions [distributions.py](distributions.py)
+  - Circuit runner ([circuit_runner.py](circuit_runner.py)): infrastructure code to run the simulations based on provided parameters and plot the results
+  - Distributions generator ([distributions.py](distributions.py)): helper module to generate samples (probabilities and frequencies) from various distributions
 
 ## Project Description
 
-State preparation is fundamental in Quantum Computing. In this work, we are using the technique suggested by the Universal Statistical Simulator paper to create variety of distributions in quantum state. The authors design a quantum version of Galton Board and demonstrate symmetric Gaussian as well as some biased distributions. Their approach results in a superposition of Hamming Weight ($HW$) 1 states. In case of the uniform distribution, they are called W states or a private case of Dicke states with $HW=1$. Those states are entangled and can be a resource in different algorithms (quantum cryptography, differential equations, optimization problems). Our solution allows any distribution to be encoded with Hamming Weight 1 states.
+State preparation is fundamental in Quantum Computing. In this work, we are using the technique suggested by the Universal Statistical Simulator paper [1] to create variety of distributions in quantum state. The authors design a quantum version of Galton Board and demonstrate symmetric Gaussian as well as some biased distributions. Their approach results in a superposition of Hamming Weight ($HW$) 1 states. In case of the uniform distribution, they are called W states or a private case of Dicke states with $HW=1$. Those states are entangled and can be a resource in different algorithms (quantum cryptography, differential equations, optimization problems). Our solution allows any distribution to be encoded with Hamming Weight 1 states.
 
-We will generalize the model to the $n$-level Galton Board and demonstrate Gaussian on noiseless simulator. We will then show that quantum pegs and a coin can be modified to output different distributions, such as Exponential or Hadamard Random Walk (Bi-Modal Distribution).
+We will generalize the model to the $n$-level Galton Board and demonstrate Gaussian on noiseless simulator. We will then show that quantum pegs and a coin can be modified to output different distributions, such as Exponential or Hadamard Random Walk (Bi-Modal Distribution) [2].
 
 To optimize for noisy environment, we come up with the Galton Board inspired approach to load any distribution and showcase the results on noisy simulators provided by IBM (with the `ibm_torino` noise model).
 
@@ -37,7 +35,7 @@ The solution is delivered as Jupyter Notebook and organized in five parts (match
 - Part IV (task 4) - Optimizing the circuits to execute on noisy simulators. We apply the technique allowing to load any distribution and show the results for Gaussian, Exponential and Hadamard distributions
 - Part V (task 5) - Analyzing statistical distances of generated values against reference distributions. We also perform comprehensive study of circuits' depth depending on number of Galton Board levels
 
-Appendix A showcases the runs of the optimized circuits on real IBM Torino device (the same backend was used for noise modeling).
+Appendix A showcases the runs of the optimized circuits on real IBM Torino device (the same backend was used for noise modeling) with and without M3 noise mitigation [3].
 
 
 ## References
