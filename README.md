@@ -7,6 +7,7 @@
 - Team Name: Quantotto
 - Team Members:
   - Yevgeny Menaker (WISER enrollment ID: gst-U7OUAHJnnFkI38T)
+- Presentation deck: [quantum_walks_project_v4.pdf](quantum_walks_project_v4.pdf)
 
 I attest that all the work was done solely by myself (Yevgeny Menaker). The use of "we" in the presentation is merely a writing style. If external sources were used, they are attributed in References.
 
